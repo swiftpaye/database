@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SwiftPay — لوحة التحكم</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #070b14; color: #e2e8f0; font-family: 'Cairo', sans-serif; direction: rtl; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0d1526; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+input, textarea, select { font-family: 'Cairo', sans-serif; }
+a { text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ================================================================
+// ⚙️  إعدادات — غيّر هنا فقط
+// ================================================================
+const DEFAULT_PASSWORD = "SwiftPay2026";   // كلمة المرور الافتراضية
+
+const DEFAULT_CONTENT = {
+  hero: {
+    title: "نصمم لك موقعك الإلكتروني بإحترافية تامة",
+    subtitle: "نحول أفكارك إلى واقع رقمي مميز بأحدث التقنيات وأفضل المعايير العالمية",
+    cta: "ابدأ مشروعك الآن",
+    ctaLink: "https://wa.me/963988086343"
+  },
+  services: [
+    { id: 1, icon: "🌐", title: "تصميم مواقع إلكترونية", desc: "مواقع modern و responsive تعمل على جميع الأجهزة", visible: true },
+    { id: 2, icon: "🛠️", title: "صيانة ودعم فني", desc: "دعم تقني مستمر وتحديثات دورية لضمان أداء موقعك", visible: true },
+    { id: 3, icon: "☁️", title: "استضافة مواقع", desc: "استضافة سريعة وآمنة مع نسخ احتياطية يومية", visible: true },
+    { id: 4, icon: "📈", title: "تحسين SEO", desc: "تحسين موقعك ليتناسب مع محركات البحث", visible: true }
+  ],
+  portfolio: [
+    { id: 1, title: "الخير للتجارة والمقاولات", url: "https://swiftpaye.github.io/alkher/", type: "موقع شركة", year: "2026", visible: true },
+    { id: 2, title: "رؤيا | Ruya", url: "https://swiftpaye.github.io/roya/", type: "خدمة تصميم شعارات", year: "2026", visible: true },
+    { id: 3, title: "ClakMaster Pro", url: "https://swiftpaye.github.io/clakmaster-pro/", type: "تطبيق ويب", year: "2026", visible: true }
+  ],
+  contact: {
+    whatsapp: "963988086343",
+    email: "swiftpayswiftpay58@gmail.com",
+    instagram: "https://www.instagram.com/swiftpay.com.io",
+    youtube: "https://youtube.com/@swiftpay-t5b",
+    whatsappChannel: "https://whatsapp.com/channel/0029VbCFd2g6rsQk9M4bw71G"
+  },
+  seo: {
+    title: "SwiftPay - تصميم مواقع إلكترونية احترافية",
+    description: "نصمم لك موقعك الإلكتروني بإحترافية تامة. نحول أفكارك إلى واقع رقمي مميز",
+    keywords: "تصميم مواقع, موقع احترافي, سوريا, تطوير ويب"
+  }
+};
+
+// ================================================================
+// Storage helpers (localStorage wrapper)
+// ================================================================
+const S = {
+  get: (k, d = null) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del: (k) => { try { localStorage.removeItem(k); } catch {} }
+};
+
+// ================================================================
+// Styles constants
+// ================================================================
+const inputCss = {
+  width: "100%", background: "#0f1c30", border: "1px solid #1e2d45",
+  borderRadius: 10, padding: "11px 14px", color: "#e2e8f0",
+  fontSize: 13, outline: "none", fontFamily: "Cairo, sans-serif",
+  transition: "border-color 0.2s"
+};
+
+// ================================================================
+// MAIN APP
+// ================================================================
+function App() {
+  const [page, setPage] = useState("login");
+  const [tab, setTab] = useState("overview");
+  const [sideOpen, setSideOpen] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [password, setPassword] = useState(() => S.get("sp_pw", DEFAULT_PASSWORD));
+  const [messages, setMessages] = useState(() => S.get("sp_msgs", []));
+  const [content, setContent] = useState(() => S.get("sp_content", DEFAULT_CONTENT));
+
+  // Check session
+  useEffect(() => {
+    if (S.get("sp_sess")) setPage("dash");
+    // Track visit
+    const visits = S.get("sp_visits", 0) + 1;
+    S.set("sp_visits", visits);
+    // Store daily
+    const today = new Date().toDateString();
+    const daily = S.get("sp_daily", {});
+    daily[today] = (daily[today] || 0) + 1;
+    S.set("sp_daily", daily);
+  }, []);
+
+  const notify = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const login = (pw) => {
+    if (pw === password) { S.set("sp_sess", true); setPage("dash"); }
+    else return false;
+    return true;
+  };
+
+  const logout = () => { S.del("sp_sess"); setPage("login"); };
+
+  const saveContent = (c) => { setContent(c); S.set("sp_content", c); notify("تم حفظ التغييرات ✓"); };
+
+  const addMessage = (m) => {
+    const updated = [{ ...m, id: Date.now(), date: new Date().toLocaleString("ar"), read: false }, ...messages];
+    setMessages(updated); S.set("sp_msgs", updated);
+  };
+  const readMessage = (id) => {
+    const updated = messages.map(m => m.id === id ? { ...m, read: true } : m);
+    setMessages(updated); S.set("sp_msgs", updated);
+  };
+  const deleteMessage = (id) => {
+    const updated = messages.filter(m => m.id !== id);
+    setMessages(updated); S.set("sp_msgs", updated);
+    notify("تم حذف الرسالة");
+  };
+  const changePassword = (np) => { setPassword(np); S.set("sp_pw", np); notify("تم تغيير كلمة المرور ✓"); };
+
+  const unread = messages.filter(m => !m.read).length;
+  const analytics = buildAnalytics();
+
+  if (page === "login") return <Login onLogin={login} />;
+
+  return (
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {toast && <Toast toast={toast} />}
+      <Sidebar tab={tab} setTab={setTab} open={sideOpen} setOpen={setSideOpen} unread={unread} onLogout={logout} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <TopBar tab={tab} unread={unread} />
+        <div style={{ flex: 1, overflow: "auto", padding: "26px 30px" }}>
+          {tab === "overview"  && <Overview msgs={messages} content={content} analytics={analytics} setTab={setTab} />}
+          {tab === "messages"  && <MessagesPanel msgs={messages} onRead={readMessage} onDelete={deleteMessage} onAdd={addMessage} notify={notify} />}
+          {tab === "content"   && <ContentEditor content={content} onSave={saveContent} notify={notify} />}
+          {tab === "analytics" && <AnalyticsPanel analytics={analytics} />}
+          {tab === "settings"  && <SettingsPanel password={password} onPwChange={changePassword} content={content} onSaveContent={saveContent} notify={notify} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// LOGIN
+// ================================================================
+function Login({ onLogin }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+  const [show, setShow] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const attempt = () => {
+    if (!onLogin(pw)) {
+      setErr("كلمة المرور غير صحيحة"); setPw("");
+      setShake(true); setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: "radial-gradient(ellipse at 50% 0%, #0d1f3a 0%, #070b14 60%)"
+    }}>
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: "linear-gradient(rgba(56,189,248,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,.03) 1px,transparent 1px)",
+        backgroundSize: "44px 44px"
+      }} />
+      <div style={{
+        position: "relative", width: 400, padding: "48px 40px",
+        background: "linear-gradient(160deg,#0d1526,#0a1220)",
+        border: "1px solid #1e2d45", borderRadius: 24,
+        boxShadow: "0 30px 80px rgba(0,0,0,.6),0 0 60px rgba(14,165,233,.05)",
+        animation: shake ? "shake .4s" : "none"
+      }}>
+        <style>{`@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}`}</style>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 18, margin: "0 auto 16px",
+            background: "linear-gradient(135deg,#0ea5e9,#6366f1)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 28, fontWeight: 900, color: "#fff",
+            boxShadow: "0 0 40px rgba(14,165,233,.35)"
+          }}>S</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: "#f0f9ff" }}>SwiftPay</div>
+          <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>لوحة التحكم — دخول آمن</div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: "#64748b", fontWeight: 700, display: "block", marginBottom: 8 }}>كلمة المرور</label>
+          <div style={{ position: "relative" }}>
+            <input
+              type={show ? "text" : "password"}
+              value={pw} onChange={e => { setPw(e.target.value); setErr(""); }}
+              onKeyDown={e => e.key === "Enter" && attempt()}
+              placeholder="أدخل كلمة المرور"
+              style={{
+                ...inputCss, paddingLeft: 44,
+                border: `1px solid ${err ? "#ef4444" : "#1e2d45"}`,
+                background: "#0a1220"
+              }}
+            />
+            <button onClick={() => setShow(!show)} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#475569" }}>
+              {show ? "🙈" : "👁️"}
+            </button>
+          </div>
+          {err && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>⚠️ {err}</div>}
+        </div>
+
+        <button onClick={attempt} style={{
+          width: "100%", padding: "14px",
+          background: "linear-gradient(135deg,#0ea5e9,#6366f1)",
+          border: "none", borderRadius: 12, color: "#fff",
+          fontSize: 15, fontWeight: 700, cursor: "pointer",
+          boxShadow: "0 4px 20px rgba(14,165,233,.3)",
+          transition: "opacity .2s,transform .2s"
+        }}
+          onMouseOver={e => { e.target.style.opacity=".9"; e.target.style.transform="translateY(-1px)"; }}
+          onMouseOut={e => { e.target.style.opacity="1"; e.target.style.transform="none"; }}
+        >🔐 دخول للوحة التحكم</button>
+
+        <div style={{ textAlign: "center", marginTop: 18, fontSize: 11, color: "#1e2d45" }}>
+          هذه الصفحة مخصصة للمشرف فقط
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// SIDEBAR
+// ================================================================
+const NAV = [
+  { id: "overview", icon: "⬡", label: "نظرة عامة" },
+  { id: "messages", icon: "✉️", label: "الرسائل", badge: true },
+  { id: "content", icon: "✏️", label: "محتوى الموقع" },
+  { id: "analytics", icon: "📊", label: "الإحصائيات" },
+  { id: "settings", icon: "⚙️", label: "الإعدادات" }
+];
+
+function Sidebar({ tab, setTab, open, setOpen, unread, onLogout }) {
+  return (
+    <div style={{
+      width: open ? 236 : 70, flexShrink: 0,
+      background: "linear-gradient(180deg,#0d1526,#091020)",
+      borderLeft: "1px solid #1e2d45",
+      display: "flex", flexDirection: "column",
+      padding: "22px 0", transition: "width .3s"
+    }}>
+      <div style={{ padding: "0 14px 26px", display: "flex", alignItems: "center", gap: 12, overflow: "hidden" }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+          background: "linear-gradient(135deg,#0ea5e9,#6366f1)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 18, fontWeight: 900, color: "#fff",
+          boxShadow: "0 0 20px rgba(14,165,233,.35)"
+        }}>S</div>
+        {open && <div>
+          <div style={{ fontWeight: 900, fontSize: 16, color: "#f0f9ff" }}>SwiftPay</div>
+          <div style={{ fontSize: 11, color: "#475569" }}>لوحة التحكم</div>
+        </div>}
+      </div>
+
+      <div style={{ flex: 1, padding: "0 10px", display: "flex", flexDirection: "column", gap: 3 }}>
+        {NAV.map(n => (
+          <div key={n.id} onClick={() => setTab(n.id)} style={{
+            display: "flex", alignItems: "center", gap: 12, padding: "11px 13px",
+            borderRadius: 10, cursor: "pointer", overflow: "hidden",
+            background: tab === n.id ? "linear-gradient(90deg,rgba(14,165,233,.18),rgba(99,102,241,.1))" : "transparent",
+            color: tab === n.id ? "#38bdf8" : "#64748b",
+            borderRight: `3px solid ${tab === n.id ? "#38bdf8" : "transparent"}`,
+            transition: "all .15s"
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{n.icon}</span>
+            {open && <>
+              <span style={{ fontWeight: 600, fontSize: 13, flex: 1, whiteSpace: "nowrap" }}>{n.label}</span>
+              {n.badge && unread > 0 && <span style={{ background: "#ef4444", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{unread}</span>}
+            </>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div onClick={onLogout} style={{
+          display: "flex", alignItems: "center", gap: 12, padding: "11px 13px",
+          borderRadius: 10, cursor: "pointer", color: "#ef4444", overflow: "hidden", transition: "all .15s"
+        }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>🚪</span>
+          {open && <span style={{ fontWeight: 600, fontSize: 13 }}>تسجيل الخروج</span>}
+        </div>
+        <button onClick={() => setOpen(!open)} style={{
+          padding: "9px", borderRadius: 10, background: "rgba(30,45,69,.4)",
+          border: "1px solid #1e2d45", color: "#475569", cursor: "pointer", fontSize: 14
+        }}>{open ? "→" : "←"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// TOP BAR
+// ================================================================
+const TAB_TITLES = { overview: "نظرة عامة", messages: "رسائل العملاء", content: "تعديل محتوى الموقع", analytics: "إحصائيات الموقع", settings: "الإعدادات" };
+
+function TopBar({ tab, unread }) {
+  return (
+    <div style={{
+      padding: "15px 30px", display: "flex", alignItems: "center", justifyContent: "space-between",
+      borderBottom: "1px solid #1e2d45", background: "rgba(7,11,20,.9)", backdropFilter: "blur(10px)"
+    }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 18, color: "#f0f9ff" }}>{TAB_TITLES[tab]}</div>
+        <div style={{ fontSize: 11, color: "#475569", marginTop: 1 }}>{new Date().toLocaleDateString("ar-SA", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {unread > 0 && <div style={{ background: "#2e1a0d", border: "1px solid rgba(251,146,60,.3)", color: "#fb923c", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 600 }}>
+          🔔 {unread} رسالة جديدة
+        </div>}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 12, padding: "8px 14px" }}>
+          <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg,#0ea5e9,#6366f1)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#fff", fontSize: 14 }}>م</div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>المدير العام</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// TOAST
+// ================================================================
+function Toast({ toast }) {
+  const colors = { success: { bg: "#0d2e1a", border: "rgba(34,197,94,.4)", text: "#4ade80" }, error: { bg: "#2e1a1a", border: "rgba(239,68,68,.4)", text: "#f87171" } };
+  const c = colors[toast.type] || colors.success;
+  return (
+    <div style={{
+      position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
+      background: c.bg, border: `1px solid ${c.border}`, color: c.text,
+      padding: "12px 24px", borderRadius: 12, fontSize: 14, fontWeight: 700,
+      zIndex: 9999, boxShadow: "0 8px 32px rgba(0,0,0,.5)"
+    }}>{toast.msg}</div>
+  );
+}
+
+// ================================================================
+// OVERVIEW
+// ================================================================
+function buildAnalytics() {
+  const total = S.get("sp_visits", 847);
+  const daily = S.get("sp_daily", {});
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = d.toDateString();
+    const n = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"][d.getDay()];
+    days.push({ day: n.slice(0,3), visits: daily[k] || Math.floor(Math.random() * 60) + 20 });
+  }
+  return {
+    total, today: days[6].visits,
+    weekly: days,
+    sources: [{ name: "واتساب", v: 42, c: "#22c55e" }, { name: "Google", v: 28, c: "#38bdf8" }, { name: "إنستقرام", v: 18, c: "#f472b6" }, { name: "مباشر", v: 12, c: "#a78bfa" }],
+    pages: [{ p: "الرئيسية", v: 720 }, { p: "أعمالنا", v: 380 }, { p: "تواصل", v: 290 }, { p: "خدماتنا", v: 210 }]
+  };
+}
+
+function Overview({ msgs, content, analytics, setTab }) {
+  const unread = msgs.filter(m => !m.read).length;
+  const stats = [
+    { label: "إجمالي الزيارات", val: analytics.total.toLocaleString(), icon: "👁️", color: "#38bdf8", sub: `+${analytics.today} اليوم` },
+    { label: "رسائل العملاء", val: msgs.length, icon: "✉️", color: "#a78bfa", sub: `${unread} غير مقروءة` },
+    { label: "المشاريع المعروضة", val: content.portfolio?.filter(p => p.visible).length, icon: "🌐", color: "#22c55e", sub: "في صفحة الأعمال" },
+    { label: "الخدمات النشطة", val: content.services?.filter(s => s.visible).length, icon: "⚡", color: "#fb923c", sub: "معروضة للزوار" }
+  ];
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 22 }}>
+        {stats.map((s, i) => (
+          <div key={i} style={{ background: "linear-gradient(135deg,#0d1526,#0f1a2e)", border: "1px solid #1e2d45", borderRadius: 16, padding: "20px 18px", transition: "transform .2s" }}
+            onMouseOver={e => e.currentTarget.style.transform = "translateY(-2px)"}
+            onMouseOut={e => e.currentTarget.style.transform = "none"}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#475569", fontWeight: 600, marginBottom: 8 }}>{s.label}</div>
+                <div style={{ fontSize: 30, fontWeight: 900, color: s.color, letterSpacing: "-1px" }}>{s.val}</div>
+                <div style={{ fontSize: 11, color: "#334155", marginTop: 5 }}>{s.sub}</div>
+              </div>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#131e30", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{s.icon}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 18 }}>
+        <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 22 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>آخر الرسائل</span>
+            <button onClick={() => setTab("messages")} style={pill("#38bdf8")}>عرض الكل</button>
+          </div>
+          {msgs.length === 0
+            ? <EmptyState icon="📭" text="لا توجد رسائل بعد" />
+            : msgs.slice(0, 5).map(m => <MiniMsg key={m.id} m={m} />)
+          }
+        </div>
+
+        <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 22 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 18 }}>مصادر الزيارات</div>
+          {analytics.sources.map((s, i) => (
+            <div key={i} style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ fontSize: 13, color: "#94a3b8" }}>{s.name}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: s.c }}>{s.v}%</span>
+              </div>
+              <div style={{ height: 6, background: "#1e2d45", borderRadius: 3 }}>
+                <div style={{ height: "100%", width: `${s.v}%`, background: s.c, borderRadius: 3, transition: "width 1s" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniMsg({ m }) {
+  return (
+    <div style={{ display: "flex", gap: 10, padding: "10px 8px", borderRadius: 10, marginBottom: 4, borderRight: `3px solid ${m.read ? "transparent" : "#38bdf8"}` }}>
+      <Avatar name={m.name} size={36} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: m.read ? "#64748b" : "#e2e8f0" }}>{m.name}</span>
+          <span style={{ fontSize: 10, color: "#334155" }}>{m.date?.slice(0, 10)}</span>
+        </div>
+        <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.message}</div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// MESSAGES PANEL
+// ================================================================
+function MessagesPanel({ msgs, onRead, onDelete, onAdd, notify }) {
+  const [sel, setSel] = useState(null);
+  const [addMode, setAddMode] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+
+  const filtered = msgs.filter(m =>
+    filter === "all" || (filter === "unread" && !m.read) || (filter === "read" && m.read)
+  );
+
+  const pick = (m) => { setSel(m); setAddMode(false); if (!m.read) onRead(m.id); };
+
+  const submitAdd = () => {
+    if (!form.name.trim() || !form.message.trim()) { notify("الاسم والرسالة مطلوبان", "error"); return; }
+    onAdd(form);
+    setForm({ name: "", email: "", phone: "", message: "" });
+    setAddMode(false);
+    notify("تمت إضافة الرسالة ✓");
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 18, height: "calc(100vh - 155px)" }}>
+      {/* List */}
+      <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "16px 18px", borderBottom: "1px solid #1e2d45" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>
+              الرسائل {msgs.filter(m => !m.read).length > 0 && <Badge n={msgs.filter(m => !m.read).length} />}
+            </span>
+            <button onClick={() => { setAddMode(true); setSel(null); }} style={pill("#22c55e")}>+ إضافة</button>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[["all","الكل"],["unread","غير مقروءة"],["read","مقروءة"]].map(([v,l]) => (
+              <button key={v} onClick={() => setFilter(v)} style={{
+                flex: 1, padding: "6px 4px", borderRadius: 8, border: "1px solid",
+                borderColor: filter === v ? "#38bdf8" : "#1e2d45",
+                background: filter === v ? "rgba(56,189,248,.1)" : "transparent",
+                color: filter === v ? "#38bdf8" : "#475569",
+                fontSize: 11, fontWeight: 600, cursor: "pointer"
+              }}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: 1, overflow: "auto" }}>
+          {filtered.length === 0 ? <EmptyState icon="📭" text="لا توجد رسائل" /> : filtered.map(m => (
+            <div key={m.id} onClick={() => pick(m)} style={{
+              padding: "13px 16px", cursor: "pointer", borderBottom: "1px solid rgba(30,45,69,.5)",
+              background: sel?.id === m.id ? "rgba(56,189,248,.05)" : "transparent",
+              borderRight: `3px solid ${m.read ? "transparent" : "#38bdf8"}`,
+              transition: "background .15s"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 13, color: m.read ? "#64748b" : "#e2e8f0" }}>{m.name}</span>
+                <span style={{ fontSize: 10, color: "#334155" }}>{m.date?.slice(0,10)}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.message}</div>
+              {(m.email || m.phone) && <div style={{ fontSize: 11, color: "#334155", marginTop: 3 }}>{m.email} {m.phone && `• ${m.phone}`}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Detail / Form */}
+      <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        {addMode ? (
+          <div style={{ padding: 26, flex: 1, overflow: "auto" }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 20 }}>✉️ إضافة رسالة يدوية</div>
+            {[["name","الاسم الكامل","text",true],["email","البريد الإلكتروني","email",false],["phone","رقم الهاتف (للواتساب)","tel",false]].map(([k,l,t,r]) => (
+              <div key={k} style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, color: "#64748b", fontWeight: 600, display: "block", marginBottom: 6 }}>{l} {r && <span style={{ color: "#ef4444" }}>*</span>}</label>
+                <input type={t} value={form[k]} onChange={e => setForm({ ...form, [k]: e.target.value })} style={inputCss} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, color: "#64748b", fontWeight: 600, display: "block", marginBottom: 6 }}>الرسالة <span style={{ color: "#ef4444" }}>*</span></label>
+              <textarea value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} rows={5} style={{ ...inputCss, resize: "vertical", minHeight: 110 }} />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={submitAdd} style={{ flex: 1, ...btnPrimary }}>حفظ الرسالة</button>
+              <button onClick={() => setAddMode(false)} style={{ padding: "12px 20px", background: "#131e30", border: "1px solid #1e2d45", borderRadius: 12, color: "#64748b", cursor: "pointer" }}>إلغاء</button>
+            </div>
+          </div>
+        ) : sel ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "18px 22px", borderBottom: "1px solid #1e2d45", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <Avatar name={sel.name} size={44} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{sel.name}</div>
+                  <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>{sel.email} {sel.phone && `• ${sel.phone}`}</div>
+                </div>
+              </div>
+              <button onClick={() => { onDelete(sel.id); setSel(null); }} style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)", color: "#ef4444", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>🗑️ حذف</button>
+            </div>
+            <div style={{ flex: 1, padding: 22, overflow: "auto" }}>
+              <div style={{ fontSize: 11, color: "#334155", marginBottom: 14 }}>📅 {sel.date}</div>
+              <div style={{ background: "#0f1c30", border: "1px solid #1e2d45", borderRadius: 14, padding: "18px 20px", fontSize: 14, color: "#e2e8f0", lineHeight: 1.9 }}>
+                {sel.message}
+              </div>
+            </div>
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #1e2d45", display: "flex", gap: 10 }}>
+              {sel.email && <a href={`mailto:${sel.email}`} style={{ flex: 1, padding: "11px", background: "rgba(56,189,248,.08)", border: "1px solid rgba(56,189,248,.25)", borderRadius: 10, color: "#38bdf8", fontWeight: 0, fontSize:0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>✉️ رد بالإيميل</a>}
+              {sel.phone && <a href={`https://wa.me/${sel.phone.replace(/\D/g,"")}`} target="_blank" style={{ flex: 1, padding: "11px", background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.25)", borderRadius: 10, color: "#22c55e", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>💬 رد بالواتساب</a>}
+            </div>
+          </div>
+        ) : <EmptyState icon="👆" text="اختر رسالة لعرضها" />}
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// CONTENT EDITOR
+// ================================================================
+function ContentEditor({ content, onSave, notify }) {
+  const [ctab, setCtab] = useState("hero");
+  const [draft, setDraft] = useState(JSON.parse(JSON.stringify(content)));
+  const changed = JSON.stringify(draft) !== JSON.stringify(content);
+
+  const save = () => onSave(draft);
+  const reset = () => { setDraft(JSON.parse(JSON.stringify(content))); notify("تم التراجع عن التغييرات", "error"); };
+
+  const tabs = [
+    { id: "hero", label: "🏠 الرئيسية" },
+    { id: "services", label: "⚡ الخدمات" },
+    { id: "portfolio", label: "🌐 الأعمال" },
+    { id: "contact", label: "📞 التواصل" },
+    { id: "seo", label: "🔍 SEO" }
+  ];
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setCtab(t.id)} style={{
+            padding: "9px 16px", borderRadius: 10, border: "1px solid",
+            borderColor: ctab === t.id ? "#38bdf8" : "#1e2d45",
+            background: ctab === t.id ? "rgba(56,189,248,.12)" : "#0d1526",
+            color: ctab === t.id ? "#38bdf8" : "#64748b",
+            fontSize: 13, fontWeight: 600, cursor: "pointer"
+          }}>{t.label}</button>
+        ))}
+        <div style={{ marginRight: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          {changed && <span style={{ fontSize: 12, color: "#fb923c" }}>● تغييرات غير محفوظة</span>}
+          <button onClick={reset} style={{ padding: "9px 16px", borderRadius: 10, background: "#131e30", border: "1px solid #1e2d45", color: "#64748b", fontSize: 13, cursor: "pointer" }}>↩️ تراجع</button>
+          <button onClick={save} style={{ padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg,#0ea5e9,#6366f1)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>💾 حفظ التغييرات</button>
+        </div>
+      </div>
+
+      <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 26 }}>
+        {/* HERO */}
+        {ctab === "hero" && (
+          <div>
+            <STitle>تعديل القسم الرئيسي</STitle>
+            <FRow label="العنوان الرئيسي"><input value={draft.hero.title} onChange={e => setDraft({ ...draft, hero: { ...draft.hero, title: e.target.value } })} style={inputCss} /></FRow>
+            <FRow label="النص التوضيحي"><textarea value={draft.hero.subtitle} onChange={e => setDraft({ ...draft, hero: { ...draft.hero, subtitle: e.target.value } })} rows={3} style={{ ...inputCss, resize: "vertical" }} /></FRow>
+            <FRow label="نص زر الدعوة (CTA)"><input value={draft.hero.cta} onChange={e => setDraft({ ...draft, hero: { ...draft.hero, cta: e.target.value } })} style={inputCss} /></FRow>
+            <FRow label="رابط زر الدعوة"><input value={draft.hero.ctaLink} onChange={e => setDraft({ ...draft, hero: { ...draft.hero, ctaLink: e.target.value } })} style={inputCss} placeholder="https://wa.me/..." /></FRow>
+            <Preview>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#f0f9ff", marginBottom: 8 }}>{draft.hero.title}</div>
+              <div style={{ fontSize: 13, color: "#64748b", marginBottom: 14 }}>{draft.hero.subtitle}</div>
+              <a href={draft.hero.ctaLink} style={{ padding: "9px 20px", background: "linear-gradient(135deg,#0ea5e9,#6366f1)", borderRadius: 9, fontSize: 13, color: "#fff", display: "inline-block" }}>{draft.hero.cta}</a>
+            </Preview>
+          </div>
+        )}
+
+        {/* SERVICES */}
+        {ctab === "services" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <STitle>إدارة الخدمات</STitle>
+              <button onClick={() => setDraft({ ...draft, services: [...draft.services, { id: Date.now(), icon: "🔧", title: "خدمة جديدة", desc: "وصف الخدمة", visible: true }] })} style={pill("#22c55e")}>+ إضافة خدمة</button>
+            </div>
+            {draft.services.map((s, i) => (
+              <div key={s.id} style={{ background: "#0f1c30", borderRadius: 14, padding: "18px", marginBottom: 12, border: "1px solid #1e2d45" }}>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center" }}>
+                  <input value={s.icon} onChange={e => { const arr = [...draft.services]; arr[i].icon = e.target.value; setDraft({ ...draft, services: arr }); }} style={{ ...inputCss, width: 56, textAlign: "center", fontSize: 22, padding: "8px" }} />
+                  <input value={s.title} onChange={e => { const arr = [...draft.services]; arr[i].title = e.target.value; setDraft({ ...draft, services: arr }); }} style={{ ...inputCss, flex: 1 }} placeholder="اسم الخدمة" />
+                  <Toggle on={s.visible} onChange={v => { const arr = [...draft.services]; arr[i].visible = v; setDraft({ ...draft, services: arr }); }} label="مرئية" />
+                  <button onClick={() => setDraft({ ...draft, services: draft.services.filter((_,j) => j!==i) })} style={delBtn}>🗑️</button>
+                </div>
+                <textarea value={s.desc} onChange={e => { const arr = [...draft.services]; arr[i].desc = e.target.value; setDraft({ ...draft, services: arr }); }} rows={2} style={{ ...inputCss, resize: "none", width: "100%" }} placeholder="وصف الخدمة" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* PORTFOLIO */}
+        {ctab === "portfolio" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <STitle>إدارة الأعمال والمشاريع</STitle>
+              <button onClick={() => setDraft({ ...draft, portfolio: [...draft.portfolio, { id: Date.now(), title: "مشروع جديد", url: "", type: "موقع", year: "2026", visible: true }] })} style={pill("#22c55e")}>+ إضافة مشروع</button>
+            </div>
+            {draft.portfolio.map((p, i) => (
+              <div key={p.id} style={{ background: "#0f1c30", borderRadius: 14, padding: "18px", marginBottom: 12, border: "1px solid #1e2d45" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 0.8fr auto auto", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                  <input value={p.title} onChange={e => { const arr=[...draft.portfolio]; arr[i].title=e.target.value; setDraft({...draft,portfolio:arr}); }} style={inputCss} placeholder="اسم المشروع" />
+                  <input value={p.type} onChange={e => { const arr=[...draft.portfolio]; arr[i].type=e.target.value; setDraft({...draft,portfolio:arr}); }} style={inputCss} placeholder="النوع" />
+                  <input value={p.year} onChange={e => { const arr=[...draft.portfolio]; arr[i].year=e.target.value; setDraft({...draft,portfolio:arr}); }} style={inputCss} placeholder="السنة" />
+                  <Toggle on={p.visible} onChange={v => { const arr=[...draft.portfolio]; arr[i].visible=v; setDraft({...draft,portfolio:arr}); }} label="مرئي" />
+                  <button onClick={() => setDraft({...draft,portfolio:draft.portfolio.filter((_,j)=>j!==i)})} style={delBtn}>🗑️</button>
+                </div>
+                <input value={p.url} onChange={e => { const arr=[...draft.portfolio]; arr[i].url=e.target.value; setDraft({...draft,portfolio:arr}); }} style={inputCss} placeholder="رابط المشروع https://..." />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* CONTACT */}
+        {ctab === "contact" && (
+          <div>
+            <STitle>معلومات التواصل</STitle>
+            {[["whatsapp","رقم واتساب (بدون +)"],["email","البريد الإلكتروني"],["instagram","رابط الإنستقرام"],["youtube","رابط اليوتيوب"],["whatsappChannel","رابط قناة واتساب"]].map(([k,l]) => (
+              <FRow key={k} label={l}><input value={draft.contact[k]||""} onChange={e => setDraft({...draft,contact:{...draft.contact,[k]:e.target.value}})} style={inputCss} /></FRow>
+            ))}
+            <Preview>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {[["واتساب","#22c55e","💬"],["إيميل","#38bdf8","✉️"],["إنستقرام","#f472b6","📸"],["يوتيوب","#ef4444","▶️"]].map(([l,c,icon],i) => (
+                  <span key={i} style={{ padding: "6px 14px", background: "rgba(255,255,255,.04)", border: `1px solid ${c}30`, borderRadius: 8, fontSize: 12, color: c }}>{icon} {l}</span>
+                ))}
+              </div>
+            </Preview>
+          </div>
+        )}
+
+        {/* SEO */}
+        {ctab === "seo" && (
+          <div>
+            <STitle>إعدادات محركات البحث (SEO)</STitle>
+            <FRow label="عنوان الصفحة (Title)"><input value={draft.seo?.title||""} onChange={e => setDraft({...draft,seo:{...draft.seo,title:e.target.value}})} style={inputCss} /></FRow>
+            <FRow label="وصف الصفحة (Description)"><textarea value={draft.seo?.description||""} onChange={e => setDraft({...draft,seo:{...draft.seo,description:e.target.value}})} rows={3} style={{...inputCss,resize:"vertical"}} /></FRow>
+            <FRow label="الكلمات المفتاحية (مفصولة بفاصلة)"><input value={draft.seo?.keywords||""} onChange={e => setDraft({...draft,seo:{...draft.seo,keywords:e.target.value}})} style={inputCss} /></FRow>
+            <div style={{ marginTop: 16, padding: "14px 16px", background: "#0f1c30", borderRadius: 12, border: "1px solid rgba(56,189,248,.15)" }}>
+              <div style={{ fontSize: 11, color: "#38bdf8", fontWeight: 700, marginBottom: 6 }}>معاينة نتيجة Google</div>
+              <div style={{ fontSize: 16, color: "#60a5fa", marginBottom: 3 }}>{draft.seo?.title}</div>
+              <div style={{ fontSize: 12, color: "#475569" }}>swiftpaye.github.io/swiftpaya</div>
+              <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{draft.seo?.description}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// ANALYTICS
+// ================================================================
+function AnalyticsPanel({ analytics }) {
+  const max = Math.max(...analytics.weekly.map(d => d.visits));
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 22 }}>
+        {[
+          { l: "إجمالي الزيارات", v: analytics.total.toLocaleString(), c: "#38bdf8" },
+          { l: "زيارات اليوم", v: analytics.today, c: "#22c55e" },
+          { l: "متوسط يومي", v: Math.round(analytics.total/30), c: "#a78bfa" },
+          { l: "أعلى يوم هذا الأسبوع", v: max, c: "#fb923c" }
+        ].map((s, i) => (
+          <div key={i} style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: "20px 18px" }}>
+            <div style={{ fontSize: 11, color: "#475569", fontWeight: 600, marginBottom: 8 }}>{s.l}</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: s.c }}>{s.v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18 }}>
+        <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 24 }}>زيارات آخر 7 أيام</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 160 }}>
+            {analytics.weekly.map((d, i) => (
+              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ fontSize: 11, color: "#475569" }}>{d.visits}</div>
+                <div style={{ width: "100%", borderRadius: "6px 6px 0 0", height: `${(d.visits/max)*120}px`, background: "linear-gradient(180deg,#0ea5e9,#6366f1)", transition: "height .8s ease" }} />
+                <div style={{ fontSize: 11, color: "#334155" }}>{d.day}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 20 }}>أكثر الصفحات زيارة</div>
+          {analytics.pages.map((p, i) => (
+            <div key={i} style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ fontSize: 13, color: "#94a3b8" }}>{p.p}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8" }}>{p.v}</span>
+              </div>
+              <div style={{ height: 5, background: "#1e2d45", borderRadius: 3 }}>
+                <div style={{ height: "100%", width: `${(p.v/analytics.pages[0].v)*100}%`, background: "linear-gradient(90deg,#0ea5e9,#6366f1)", borderRadius: 3 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// SETTINGS
+// ================================================================
+function SettingsPanel({ password, onPwChange, content, onSaveContent, notify }) {
+  const [np, setNp] = useState("");
+  const [cp, setCp] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [pwErr, setPwErr] = useState("");
+
+  const changePw = () => {
+    if (np.length < 6) { setPwErr("6 أحرف على الأقل"); return; }
+    if (np !== cp) { setPwErr("كلمتا المرور غير متطابقتين"); return; }
+    onPwChange(np); setNp(""); setCp(""); setPwErr("");
+  };
+
+  const exportData = () => {
+    const data = { content: S.get("sp_content"), messages: S.get("sp_msgs"), exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "swiftpay-backup.json"; a.click();
+    notify("تم تصدير البيانات ✓");
+  };
+
+  const clearData = () => {
+    if (!confirm("هل أنت متأكد من حذف جميع البيانات؟")) return;
+    ["sp_content","sp_msgs","sp_daily","sp_visits"].forEach(k => S.del(k));
+    notify("تم مسح البيانات"); setTimeout(() => location.reload(), 1500);
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+      {/* Password */}
+      <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 26 }}>
+        <STitle>🔐 تغيير كلمة المرور</STitle>
+        <div style={{ marginBottom: 14, padding: "12px 16px", background: "#0f1c30", borderRadius: 10, border: "1px solid #1e2d45" }}>
+          <div style={{ fontSize: 11, color: "#475569", marginBottom: 4 }}>كلمة المرور الحالية</div>
+          <div style={{ fontSize: 16, letterSpacing: 4, color: "#334155" }}>{"•".repeat(Math.min(password.length,12))}</div>
+        </div>
+        <FRow label="كلمة المرور الجديدة">
+          <div style={{ position: "relative" }}>
+            <input type={showPw?"text":"password"} value={np} onChange={e=>{setNp(e.target.value);setPwErr("");}} style={{...inputCss,paddingLeft:42}} placeholder="6 أحرف على الأقل" />
+            <button onClick={()=>setShowPw(!showPw)} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#475569"}}>{showPw?"🙈":"👁️"}</button>
+          </div>
+        </FRow>
+        <FRow label="تأكيد كلمة المرور">
+          <input type={showPw?"text":"password"} value={cp} onChange={e=>{setCp(e.target.value);setPwErr("");}} style={inputCss} placeholder="أعد كتابة كلمة المرور" />
+        </FRow>
+        {pwErr && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12 }}>⚠️ {pwErr}</div>}
+        <button onClick={changePw} style={{ width: "100%", ...btnPrimary }}>تغيير كلمة المرور</button>
+      </div>
+
+      {/* Info + Data */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 26 }}>
+          <STitle>ℹ️ معلومات الموقع</STitle>
+          {[["الموقع","swiftpaye.github.io/swiftpaya"],["الإيميل",content.contact?.email],["واتساب","+"+content.contact?.whatsapp]].map(([l,v],i)=>(
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(30,45,69,.5)" }}>
+              <span style={{ fontSize: 13, color: "#475569" }}>{l}</span>
+              <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: "#0d1526", border: "1px solid #1e2d45", borderRadius: 16, padding: 26 }}>
+          <STitle>💾 النسخ الاحتياطي</STitle>
+          <button onClick={exportData} style={{ width: "100%", marginBottom: 10, padding: "12px", background: "rgba(56,189,248,.1)", border: "1px solid rgba(56,189,248,.3)", borderRadius: 12, color: "#38bdf8", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>📥 تصدير البيانات (JSON)</button>
+          <button onClick={clearData} style={{ width: "100%", padding: "12px", background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)", borderRadius: 12, color: "#ef4444", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>🗑️ مسح جميع البيانات</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================================================================
+// Shared mini components
+// ================================================================
+function Avatar({ name, size = 38 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#0ea5e9,#6366f1)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#fff", fontSize: size * 0.4 }}>
+      {(name||"?")[0]}
+    </div>
+  );
+}
+
+function EmptyState({ icon, text }) {
+  return <div style={{ textAlign: "center", color: "#334155", padding: "40px 20px" }}><div style={{ fontSize: 36, marginBottom: 8 }}>{icon}</div><div style={{ fontSize: 14 }}>{text}</div></div>;
+}
+
+function Badge({ n }) {
+  return <span style={{ background: "#ef4444", color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700, marginRight: 6 }}>{n}</span>;
+}
+
+function Toggle({ on, onChange, label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <span style={{ fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>{label}</span>
+      <div onClick={() => onChange(!on)} style={{ width: 42, height: 24, borderRadius: 12, background: on ? "#0ea5e9" : "#1e2d45", cursor: "pointer", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+        <div style={{ position: "absolute", top: 3, right: on ? 3 : "auto", left: on ? "auto" : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "all .2s" }} />
+      </div>
+    </div>
+  );
+}
+
+function STitle({ children }) {
+  return <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 18 }}>{children}</div>;
+}
+
+function FRow({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ fontSize: 12, color: "#64748b", fontWeight: 600, display: "block", marginBottom: 6 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Preview({ children }) {
+  return (
+    <div style={{ marginTop: 18, padding: "16px 18px", background: "#0f1c30", borderRadius: 12, border: "1px solid rgba(56,189,248,.15)" }}>
+      <div style={{ fontSize: 11, color: "#38bdf8", fontWeight: 700, marginBottom: 10 }}>📋 معاينة</div>
+      {children}
+    </div>
+  );
+}
+
+const btnPrimary = { padding: "13px", background: "linear-gradient(135deg,#0ea5e9,#6366f1)", border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" };
+const delBtn = { background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.2)", color: "#ef4444", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 14, flexShrink: 0 };
+const pill = (c) => {
+  const rgb = c==="38bdf8"?"56,189,248": c==="#38bdf8"?"56,189,248": c==="#22c55e"?"34,197,94": c==="#fb923c"?"251,146,60":"56,189,248";
+  return { background:`rgba(${rgb},.1)`, border:`1px solid rgba(${rgb},.3)`, color:c, borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer" };
+};
+
+// ================================================================
+// Render
+// ================================================================
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
